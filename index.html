@@ -1,0 +1,266 @@
+<!-- @format -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dining Philosophers Simulator</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background: #f4f4f4;
+        margin: 0;
+        height: 100vh;
+        justify-content: center;
+      }
+      #circle {
+        position: relative;
+        width: 500px;
+        height: 500px;
+        border: 2px solid #ccc;
+        border-radius: 50%;
+        margin-bottom: 40px;
+      }
+      .philosopher,
+      .fork {
+        position: absolute;
+        text-align: center;
+        border-radius: 50%;
+      }
+      .philosopher {
+        width: 90px;
+        height: 90px;
+        line-height: 1.2;
+        font-weight: bold;
+        padding-top: 20px;
+        white-space: pre-line;
+      }
+      .fork {
+        width: 20px;
+        height: 20px;
+        background: grey;
+      }
+      #controls {
+        margin-top: 20px;
+      }
+      button {
+        margin: 5px;
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="circle">
+      <div class="philosopher" id="p0"></div>
+      <div class="philosopher" id="p1"></div>
+      <div class="philosopher" id="p2"></div>
+      <div class="philosopher" id="p3"></div>
+      <div class="philosopher" id="p4"></div>
+
+      <div class="fork" id="f0"></div>
+      <div class="fork" id="f1"></div>
+      <div class="fork" id="f2"></div>
+      <div class="fork" id="f3"></div>
+      <div class="fork" id="f4"></div>
+    </div>
+
+    <div id="controls">
+      <button onclick="take_forks(0)">Philosopher 0 take forks</button>
+      <button onclick="put_forks(0)">Philosopher 0 put forks</button>
+      <button onclick="take_forks(1)">Philosopher 1 take forks</button>
+      <button onclick="put_forks(1)">Philosopher 1 put forks</button>
+      <button onclick="take_forks(2)">Philosopher 2 take forks</button>
+      <button onclick="put_forks(2)">Philosopher 2 put forks</button>
+      <button onclick="take_forks(3)">Philosopher 3 take forks</button>
+      <button onclick="put_forks(3)">Philosopher 3 put forks</button>
+      <button onclick="take_forks(4)">Philosopher 4 take forks</button>
+      <button onclick="put_forks(4)">Philosopher 4 put forks</button>
+    </div>
+
+    <script>
+      const N = 5;
+      const THINKING = 0,
+        HUNGRY = 1,
+        EATING = 2;
+      const state = Array(N).fill(THINKING);
+      const forks = Array(N).fill(false);
+      const mutex = { locked: false };
+      const s = Array(N).fill(false);
+      const hungrySince = Array(N).fill(null);
+
+      const centerX = 250;
+      const centerY = 250;
+      const radiusP = 180;
+      const radiusF = 140;
+
+      function LEFT(i) {
+        return i;
+      }
+      function RIGHT(i) {
+        return (i + N - 1) % N;
+      }
+      function LEFT1(i) {
+        return (i + N - 1) % N;
+      }
+      function RIGHT1(i) {
+        return (i + 1) % N;
+      }
+
+      function wait(mutex) {
+        while (mutex.locked);
+        mutex.locked = true;
+      }
+      function signal(mutex) {
+        mutex.locked = false;
+      }
+
+      function updateUI() {
+        for (let i = 0; i < N; i++) {
+          const angle = (360 / N) * i;
+          const angleRad = angle * (Math.PI / 180);
+
+          const px = centerX + radiusP * Math.cos(angleRad) - 45;
+          const py = centerY + radiusP * Math.sin(angleRad) - 45;
+          const fx = centerX + radiusF * Math.cos(angleRad + Math.PI / N) - 10;
+          const fy = centerY + radiusF * Math.sin(angleRad + Math.PI / N) - 10;
+
+          const p = document.getElementById(`p${i}`);
+          p.style.left = `${px}px`;
+          p.style.top = `${py}px`;
+          const waitTime = hungrySince[i]
+            ? ((Date.now() - hungrySince[i]) / 1000).toFixed(1)
+            : "";
+          p.innerText = `P${i}\n${waitTime ? waitTime + "s" : ""}`;
+
+          if (state[i] === THINKING) {
+            p.style.background = "#b3d4fc";
+          } else if (state[i] === HUNGRY) {
+            const waited = hungrySince[i] ? Date.now() - hungrySince[i] : 0;
+            p.style.background = waited > 10000 ? "red" : "orange";
+          } else {
+            p.style.background = "lightgreen";
+          }
+
+          const f = document.getElementById(`f${i}`);
+          f.style.left = `${fx}px`;
+          f.style.top = `${fy}px`;
+          f.style.background = forks[i] ? "red" : "grey";
+        }
+      }
+
+      function test(i) {
+        if (
+          state[i] === HUNGRY &&
+          state[LEFT1(i)] !== EATING &&
+          state[RIGHT1(i)] !== EATING
+        ) {
+          state[i] = EATING;
+          forks[i] = true;
+          forks[RIGHT(i)] = true;
+          s[i] = true;
+          hungrySince[i] = null;
+        }
+      }
+
+      function take_forks(i) {
+        wait(mutex);
+        state[i] = HUNGRY;
+        if (!hungrySince[i]) hungrySince[i] = Date.now();
+        test(i);
+        signal(mutex);
+        if (!s[i]) {
+          alert(`Philosopher ${i} must wait.`);
+        }
+        updateUI();
+        checkDeadlock();
+        checkStarvation();
+      }
+
+      function put_forks(i) {
+        wait(mutex);
+        if (state[i] == HUNGRY) {
+          state[i] = THINKING;
+
+          s[i] = false;
+          hungrySince[i] = null;
+        } else {
+          state[i] = THINKING;
+
+          forks[i] = false;
+          forks[RIGHT(i)] = false;
+          s[i] = false;
+          hungrySince[i] = null;
+        }
+
+        test(LEFT1(i));
+        test(RIGHT1(i));
+        signal(mutex);
+        updateUI();
+      }
+
+      function checkDeadlock() {
+        const allHungry = state.every((s) => s === HUNGRY);
+        const noForks = forks.every((f) => !f);
+        if (allHungry && noForks) {
+          alert("🔴 Deadlock detected! Forcing a philosopher to think.");
+          const unlucky = Math.floor(Math.random() * N);
+          state[unlucky] = THINKING;
+          s[unlucky] = false;
+          hungrySince[unlucky] = null;
+          updateUI();
+        }
+      }
+
+      function checkStarvation() {
+        for (let i = 0; i < N; i++) {
+          if (
+            state[i] === HUNGRY &&
+            hungrySince[i] &&
+            Date.now() - hungrySince[i] > 10000
+          ) {
+            alert(`⚠️ Philosopher ${i} is starving! Forcing them to eat.`);
+
+            const left = LEFT1(i);
+            const right = RIGHT1(i);
+
+            if (state[left] === EATING) {
+              state[left] = HUNGRY;
+              forks[left] = false;
+              forks[RIGHT(left)] = false;
+              s[left] = false;
+              if (!hungrySince[left]) hungrySince[left] = Date.now();
+            }
+
+            if (state[right] === EATING) {
+              state[right] = HUNGRY;
+              forks[right] = false;
+              forks[RIGHT(right)] = false;
+              s[right] = false;
+              if (!hungrySince[right]) hungrySince[right] = Date.now();
+            }
+
+            state[i] = EATING;
+            forks[i] = true;
+            forks[RIGHT(i)] = true;
+            s[i] = true;
+            hungrySince[i] = null;
+
+            updateUI();
+          }
+        }
+      }
+
+      setInterval(() => {
+        updateUI();
+        checkStarvation();
+      }, 1000);
+
+      updateUI();
+    </script>
+  </body>
+</html>
