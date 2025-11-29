@@ -2,6 +2,11 @@
 
 This project is a **visual, interactive simulation** of the **Dining Philosophers Problem** using **HTML, CSS, and JavaScript** for educational purposes. It helps you understand concurrency, deadlock, and starvation handling in the classic synchronization problem.
 
+## Live Demo
+
+> 🔗 **Deployed Link:**  
+> [https://dining-philosopher-preemptive.vercel.app/](https://dining-philosopher-preemptive.vercel.app/)
+
 ## Features
 
 ✅ Visual circular layout with **5 philosophers and 5 forks**  
